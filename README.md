@@ -46,6 +46,7 @@
         <div style="min-width: 150px;">
             <input type="file" id="csvFileInput" accept=".csv" onchange="importCSV()" />
             <button onclick="nextShooter()">下一位选手</button><br><br>
+            <button onclick="undoLastShot()">撤回上一个点</button>
             <button onclick="exportCSV()">导出 CSV</button>
             <button onclick="clearCache()">清空缓存数据</button>
             <button onclick="clearData()">清空所有数据</button><br><br>
@@ -97,15 +98,26 @@
         function drawTarget() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const colors = ['#FFFFFF', '#FFFFFF', '#000000', '#000000', '#0000FF', '#0000FF', '#FF0000', '#FF0000', '#FFD700', '#FFD700'];
+
+            // 绘制靶圈 + 环数标记
             for (let i = 10; i >= 1; i--) {
+                const radius = i * ringWidth * 10;
                 ctx.beginPath();
-                ctx.arc(center.x, center.y, i * ringWidth * 10, 0, 2 * Math.PI);
+                ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = colors[10 - i];
                 ctx.fill();
                 ctx.strokeStyle = '#666';
                 ctx.lineWidth = 1;
                 ctx.stroke();
+
+                // 添加环数标记（上方+右方）
+                ctx.fillStyle = '#000';
+                ctx.font = `${canvas.width * 0.015}px Arial`;
+                ctx.fillText(`${i}`, center.x + radius + 5, center.y + 5); // 右侧
+                ctx.fillText(`${i}`, center.x - 5, center.y - radius - 5); // 上方
             }
+
+            // 靶心标记
             ctx.beginPath();
             ctx.arc(center.x, center.y, 4, 0, 2 * Math.PI);
             ctx.fillStyle = '#FF0000';
@@ -113,10 +125,22 @@
             ctx.strokeStyle = '#000';
             ctx.stroke();
             ctx.fillStyle = '#000';
-            ctx.font = '12px Arial';
+            ctx.font = `${canvas.width * 0.015}px Arial`;
             ctx.fillText('靶心', center.x + 6, center.y - 6);
-    
-            // 重新绘制当前箭痕
+
+            // 坐标线
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, center.y);
+            ctx.lineTo(canvas.width, center.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(center.x, 0);
+            ctx.lineTo(center.x, canvas.height);
+            ctx.stroke();
+
+            // 重绘当前箭痕
             currentShots.forEach(shot => {
                 const px = center.x + shot.x / scale;
                 const py = center.y - shot.y / scale;
@@ -369,7 +393,8 @@
                 csv += `${name},${group},,,,,${totalScore},${averageScore.toFixed(2)},${meanX.toFixed(2)},${meanY.toFixed(2)},${stdX.toFixed(2)},${stdY.toFixed(2)},${maxDist.toFixed(2)}\n`;
             }
 
-            const blob = new Blob([csv], { type: 'text/csv' });
+            const BOM = '\uFEFF';  // UTF-8 BOM
+            const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -395,9 +420,13 @@
                     document.getElementById('groupSelect').value = last.group;
                     document.getElementById('shooterName').disabled = true;
                     document.getElementById('groupSelect').disabled = true;
-                    document.getElementById('arrowCount').textContent = `当前第 ${currentShots.length + 1} / ${MAX_SHOTS_PER_SHOOTER} 箭`;
 
+                    // 恢复该射手最近10箭
                     currentShots = allShots.filter(s => s.name === last.name && s.group === last.group).slice(-10);
+                    
+                    // ✅ 显示箭数
+                    document.getElementById('arrowCount').textContent = `当前第 ${currentShots.length} / 10 箭`;
+
                     drawTarget(); // 重绘箭痕
                     updateStats();
                 }
@@ -455,6 +484,31 @@
             };
             reader.readAsText(file);
         }
+
+        function undoLastShot() {
+            if (currentShots.length === 0) {
+                alert('当前无可撤回的箭');
+                return;
+            }
+
+            const lastShot = currentShots.pop();
+
+            // 从 allShots 中移除该箭（从末尾往前找符合当前射手名和组的记录）
+            for (let i = allShots.length - 1; i >= 0; i--) {
+                if (allShots[i].name === lastShot.name && allShots[i].group === lastShot.group) {
+                    allShots.splice(i, 1);
+                    break;
+                }
+            }
+
+            // 更新当前箭数显示
+            document.getElementById('arrowCount').textContent = `当前第 ${currentShots.length} / 10 箭`;
+
+            updateStats();
+            drawTarget();
+            saveToLocal();
+        }
+
 </script>
     
     
