@@ -97,24 +97,40 @@
     
         function drawTarget() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const colors = ['#FFFFFF', '#FFFFFF', '#000000', '#000000', '#0000FF', '#0000FF', '#FF0000', '#FF0000', '#FFD700', '#FFD700'];
+            const colors = ['#FFD700', '#FFD700', '#FF0000', '#FF0000', '#0000FF', '#0000FF', '#000000', '#000000', '#FFFFFF', '#FFFFFF'];
 
             // 绘制靶圈 + 环数标记
             for (let i = 10; i >= 1; i--) {
                 const radius = i * ringWidth * 10;
                 ctx.beginPath();
                 ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = colors[10 - i];
+                ctx.fillStyle = colors[i - 1];  // 正确的颜色索引：从外到内变深
                 ctx.fill();
                 ctx.strokeStyle = '#666';
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
-                // 添加环数标记（上方+右方）
+                // 正确的环数标记：外圈是 1，中心是 10
+                const ringNumber = 11 - i;
+                const midRadius = ((i + (i - 1)) / 2) * ringWidth * 10;
+
                 ctx.fillStyle = '#000';
                 ctx.font = `${canvas.width * 0.015}px Arial`;
-                ctx.fillText(`${i}`, center.x + radius + 5, center.y + 5); // 右侧
-                ctx.fillText(`${i}`, center.x - 5, center.y - radius - 5); // 上方
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // 添加 2cm 处的内圈线（X环）
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, 2 / scale, 0, 2 * Math.PI);
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // 在右侧中心
+                ctx.fillText(`${ringNumber}`, center.x + midRadius, center.y);
+
+                // 在上方中心
+                ctx.fillText(`${ringNumber}`, center.x, center.y - midRadius);
             }
 
             // 靶心标记
@@ -128,26 +144,66 @@
             ctx.font = `${canvas.width * 0.015}px Arial`;
             ctx.fillText('靶心', center.x + 6, center.y - 6);
 
-            // 坐标线
+            // 坐标线 + 刻度
             ctx.strokeStyle = '#999';
             ctx.lineWidth = 1;
+
+            // 横轴线
             ctx.beginPath();
             ctx.moveTo(0, center.y);
             ctx.lineTo(canvas.width, center.y);
             ctx.stroke();
+
+            // 纵轴线
             ctx.beginPath();
             ctx.moveTo(center.x, 0);
             ctx.lineTo(center.x, canvas.height);
             ctx.stroke();
 
-            // 重绘当前箭痕
-            currentShots.forEach(shot => {
+            // 刻度线和标签（每10cm）
+            ctx.fillStyle = '#333';
+            ctx.font = `${canvas.width * 0.012}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = 1;
+            const maxCm = 40;
+            for (let cm = -maxCm; cm <= maxCm; cm += 10) {
+                if (cm === 0) continue;
+                const offset = cm / scale;
+
+                // X轴刻度（水平线上的点）
+                ctx.beginPath();
+                ctx.moveTo(center.x + offset, center.y - 5);
+                ctx.lineTo(center.x + offset, center.y + 5);
+                ctx.stroke();
+                ctx.fillText(`${cm}`, center.x + offset, center.y + 15);
+
+                // Y轴刻度（垂直线上）
+                ctx.beginPath();
+                ctx.moveTo(center.x - 5, center.y - offset);
+                ctx.lineTo(center.x + 5, center.y - offset);
+                ctx.stroke();
+                ctx.fillText(`${cm}`, center.x - 15, center.y - offset);
+            }
+
+            // 重绘当前箭痕并标出编号
+            currentShots.forEach((shot, index) => {
                 const px = center.x + shot.x / scale;
                 const py = center.y - shot.y / scale;
+
+                // 绘制绿色圆点
+                const arrowRadiusPx = 0.4 / scale; // 0.4cm 半径，转换为像素
                 ctx.fillStyle = '#00FF00';
                 ctx.beginPath();
-                ctx.arc(px, py, 3, 0, 2 * Math.PI);
+                ctx.arc(x, y, arrowRadiusPx, 0, 2 * Math.PI);
                 ctx.fill();
+
+                // 添加编号文字
+                ctx.fillStyle = '#000';
+                ctx.font = `${canvas.width * 0.015}px Arial`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(`${index + 1}`, px + 5, py + 5);
             });
         }
     
@@ -191,7 +247,7 @@
     
             ctx.fillStyle = '#00FF00';
             ctx.beginPath();
-            ctx.arc(x, y, 3, 0, 2 * Math.PI);
+            ctx.arc(x, y, 0.4 / scale, 0, 2 * Math.PI);
             ctx.fill();
             
             updateStats();
@@ -210,9 +266,12 @@
             }
         }, { passive: false }); // 👈 注意加 passive: false 才能有效拦截
 
-        function getScore(distance) {
-            return Math.max(0, 11 - Math.ceil(distance / ringWidth));
-        }
+        const getScore = (distance) => {
+            const arrowRadius = 0.4; // 单位cm
+            const ring = Math.floor((distance - arrowRadius + 0.0001) / ringWidth);
+            const score = 10 - ring;
+            return score > 0 ? score : 0;
+        };
     
         function updateStats() {
             const statsDiv = document.getElementById('stats');
