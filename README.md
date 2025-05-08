@@ -1,5 +1,3 @@
-# archery.github.io
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -80,7 +78,7 @@
         const canvas = document.getElementById('canvas');
         canvas.width = canvasSize;
         canvas.height = canvasSize;
-
+        let touchTimer = null;
         const ctx = canvas.getContext('2d');
         const scale = 80 / canvas.width;  // px → cm（靶面总宽80cm）
         const center = { x: canvas.width / 2, y: canvas.height / 2 };
@@ -195,7 +193,7 @@
                 const arrowRadiusPx = 0.4 / scale; // 0.4cm 半径，转换为像素
                 ctx.fillStyle = '#00FF00';
                 ctx.beginPath();
-                ctx.arc(x, y, arrowRadiusPx, 0, 2 * Math.PI);
+                ctx.arc(px, py, arrowRadiusPx, 0, 2 * Math.PI);
                 ctx.fill();
 
                 // 添加编号文字
@@ -255,16 +253,25 @@
         });
     
         canvas.addEventListener('touchstart', function (e) {
-            e.preventDefault(); // 👈 阻止浏览器默认缩放或双击行为
             if (e.touches.length === 1) {
                 const touch = e.touches[0];
-                const simulatedEvent = new MouseEvent('click', {
-                    clientX: touch.clientX,
-                    clientY: touch.clientY
-                });
-                canvas.dispatchEvent(simulatedEvent);
-            }
-        }, { passive: false }); // 👈 注意加 passive: false 才能有效拦截
+                const x = touch.clientX - canvas.getBoundingClientRect().left;
+                const y = touch.clientY - canvas.getBoundingClientRect().top;
+
+                // 设置长按触发
+                touchTimer = setTimeout(() => {
+                    showTouchCoordinate(x, y);
+                }, 600); // 长按 600ms 触发
+                }
+            }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            if (touchTimer) clearTimeout(touchTimer);
+        });
+
+        canvas.addEventListener('touchmove', () => {
+            if (touchTimer) clearTimeout(touchTimer);
+        });
 
         const getScore = (distance) => {
             const arrowRadius = 0.4; // 单位cm
@@ -566,6 +573,26 @@
             updateStats();
             drawTarget();
             saveToLocal();
+        }
+
+        function showTouchCoordinate(x, y) {
+            const dx = (x - center.x) * scale;
+            const dy = (center.y - y) * scale;
+
+            const label = `(${dx.toFixed(1)}cm, ${dy.toFixed(1)}cm)`;
+
+            // 白色背景圆
+            ctx.beginPath();
+            ctx.arc(x, y - 20, 28, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.fill();
+
+            // 黑字标签
+            ctx.fillStyle = '#000';
+            ctx.font = `${canvas.width * 0.014}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, x, y - 20);
         }
 
 </script>
