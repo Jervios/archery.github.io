@@ -393,7 +393,7 @@
 
             let html = '<table border="1" cellpadding="5" style="border-collapse: collapse;">';
             html += `<tr>
-                <th>姓名</th><th>分组</th><th>总环数</th><th>平均环数</th>
+                <th>姓名</th><th>分组</th><th>周次</th><th>总环数</th><th>平均环数</th>
                 <th>散布中心X(cm)</th><th>散布中心Y(cm)</th>
                 <th>标准差X</th><th>标准差Y</th><th>最大散布距离</th><th>操作</th>
             </tr>`;
@@ -418,7 +418,7 @@
                 }
 
                 html += `<tr>
-                    <td>${name}</td><td>${group}</td>
+                    <td>${name}</td><td>${group}</td><td>${data[0].week || "第0周"}</td>
                     <td>${total}</td><td>${avg.toFixed(2)}</td>
                     <td>${meanX.toFixed(2)}</td><td>${meanY.toFixed(2)}</td>
                     <td>${stdX.toFixed(2)}</td><td>${stdY.toFixed(2)}</td>
@@ -519,6 +519,7 @@
             const data = localStorage.getItem('archery_allShots');
             if (data) {
                 allShots = JSON.parse(data);
+                normalizeWeeks();
                 updateSummary();
 
                 // 尝试还原最后一个射手的数据
@@ -541,6 +542,15 @@
                     updateStats();
                 }
             }
+        }
+
+        // 通用数据清洗函数，补充缺失的 week
+        function normalizeWeeks() {
+            allShots.forEach(s => {
+                if (!s.week) {
+                    s.week = "第0周";
+                }
+            });
         }
 
 
@@ -589,6 +599,7 @@
                 }
 
                 allShots = newShots;
+                normalizeWeeks();
                 currentShots = [];
                 currentShooter = null;
                 updateSummary();
