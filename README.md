@@ -36,6 +36,23 @@
                     <option value="3m组">3m组</option>
                     <option value="5m组">5m组</option>
                     <option value="8m组">8m组</option>
+                    <option value="VR组">VR组</option>
+                </select>
+            </label>
+            <label>周次：
+                <select id="weekSelect">
+                    <option value="第1周">第1周</option>
+                    <option value="第2周">第2周</option>
+                    <option value="第3周">第3周</option>
+                    <option value="第4周">第4周</option>
+                    <option value="第5周">第5周</option>
+                    <option value="第6周">第6周</option>
+                    <option value="第7周">第7周</option>
+                    <option value="第8周">第8周</option>
+                    <option value="第9周">第9周</option>
+                    <option value="第10周">第10周</option>
+                    <option value="第11周">第11周</option>
+                    <option value="第12周">第12周</option>
                 </select>
             </label>
             <span id="arrowCount" style="margin-left:10px;color:#666;"></span>
@@ -113,7 +130,7 @@
                 const midRadius = ((i + (i - 1)) / 2) * ringWidth * 10;
 
                 ctx.fillStyle = '#000';
-                ctx.font = `${canvas.width * 0.015}px Arial`;
+                ctx.font = `${canvas.width * 0.025}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
@@ -140,7 +157,7 @@
             ctx.stroke();
             ctx.fillStyle = '#000';
             ctx.font = `${canvas.width * 0.015}px Arial`;
-            ctx.fillText('靶心', center.x + 6, center.y - 6);
+            ctx.fillText('', center.x + 6, center.y - 6);
 
             // 坐标线 + 刻度
             ctx.strokeStyle = '#999';
@@ -184,6 +201,7 @@
                 ctx.fillText(`${cm}`, center.x - 15, center.y - offset);
             }
 
+            
             // 重绘当前箭痕并标出编号
             currentShots.forEach((shot, index) => {
                 const px = center.x + shot.x / scale;
@@ -198,7 +216,7 @@
 
                 // 添加编号文字
                 ctx.fillStyle = '#000';
-                ctx.font = `${canvas.width * 0.015}px Arial`;
+                ctx.font = `${canvas.width * 0.025}px Arial`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'top';
                 ctx.fillText(`${index + 1}`, px + 5, py + 5);
@@ -217,9 +235,17 @@
             }
     
             if (!currentShooter) {
-                currentShooter = { name, group };
+                const week = document.getElementById('weekSelect').value;
+                const exists = allShots.some(s => s.name === name && s.group === group && s.week === week);
+                if (exists) {
+                    if (!confirm(`${name} 已在 ${group} - ${week} 记录过，是否继续？`)) {
+                        return;
+                    }
+                }
+                currentShooter = { name, group, week };
                 nameInput.disabled = true;
                 groupSelect.disabled = true;
+                document.getElementById('weekSelect').disabled = true;
             }
     
             if (currentShots.length >= MAX_SHOTS_PER_SHOOTER) {
@@ -239,7 +265,8 @@
             const distance = Math.sqrt(dx * dx + dy * dy);
             const score = getScore(distance);
     
-            const shot = { x: dx, y: dy, score, name, group, timestamp: new Date().toISOString() };
+            const week = document.getElementById('weekSelect').value;
+            const shot = { x: dx, y: dy, score, name, group, week, timestamp: new Date().toISOString() };
             currentShots.push(shot);
             allShots.push(shot);
     
@@ -388,7 +415,10 @@
                     <td>${meanX.toFixed(2)}</td><td>${meanY.toFixed(2)}</td>
                     <td>${stdX.toFixed(2)}</td><td>${stdY.toFixed(2)}</td>
                     <td>${maxDist.toFixed(2)}</td>
-                    <td><button onclick="deleteShooter('${name}', '${group}')">删除</button></td>
+                    <td>
+                        <button onclick="editShooter('${name}', '${group}')">编辑</button>
+                        <button onclick="deleteShooter('${name}', '${group}')">删除</button>
+                    </td>
                 </tr>`;
             }
 
@@ -403,9 +433,10 @@
             currentShooter = null;
             document.getElementById('shooterName').value = '';
             document.getElementById('shooterName').disabled = false;
-            document.getElementById('groupSelect').disabled = false;
-            document.getElementById('stats').innerHTML = '';
-            document.getElementById('summary').innerHTML = '';
+            const groupSelect = document.getElementById('groupSelect');
+            groupSelect.disabled = false;
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.disabled = false;
             drawTarget();
             saveToLocal();
         }
@@ -426,7 +457,8 @@
                 grouped[key].push(s);
             });
 
-            let csv = 'name,group,x(cm),y(cm),score,totalScore,averageScore,meanX(cm),meanY(cm),stdX(cm),stdY(cm),maxDistance(cm), timestamp\n';
+            let csv = 'name,group,week,x(cm),y(cm),score,totalScore,averageScore,meanX(cm),meanY(cm),stdX(cm),stdY(cm),maxDistance(cm),timestamp\n';
+
 
             for (const key in grouped) {
                 const groupData = grouped[key];
@@ -435,7 +467,7 @@
 
                 // 每箭数据
                 groupData.forEach(s => {
-                    csv += `${s.name},${s.group},${s.x.toFixed(1)},${s.y.toFixed(1)},${s.score},${s.timestamp},,,,,,,\n`;
+                    csv += `${s.name},${s.group},${s.week},${s.x.toFixed(1)},${s.y.toFixed(1)},${s.score},${s.timestamp},,,,,,,\n`;
                 });
 
                 // 统计信息
@@ -481,7 +513,9 @@
                 // 尝试还原最后一个射手的数据
                 if (allShots.length > 0) {
                     const last = allShots[allShots.length - 1];
-                    currentShooter = { name: last.name, group: last.group };
+                    currentShooter = { name: last.name, group: last.group, week: last.week || '第1周' };
+                    document.getElementById('weekSelect').value = last.week || '第1周';
+                    document.getElementById('weekSelect').disabled = true;
                     document.getElementById('shooterName').value = last.name;
                     document.getElementById('groupSelect').value = last.group;
                     document.getElementById('shooterName').disabled = true;
@@ -594,6 +628,55 @@
             ctx.textBaseline = 'middle';
             ctx.fillText(label, x, y - 20);
         }
+
+        function editShooter(name, group) {
+            const week = prompt("请输入新的周次（例如：第1周、第2周...）", "第1周");
+            const newName = prompt("请输入新的姓名", name);
+            const newGroup = prompt("请输入新的分组", group);
+
+            if (!newName || !newGroup || !week) {
+                alert('编辑取消或无效输入');
+                return;
+            }
+
+            // 检查是否已存在相同姓名+分组+周次
+            const conflict = allShots.some(s => s.name === newName && s.group === newGroup && s.week === week && !(s.name === name && s.group === group));
+            if (conflict) {
+                alert(`已存在 ${newName} 在 ${newGroup} - ${week} 的记录，修改取消`);
+                return;
+            }
+
+            // 更新 allShots 中所有该选手记录
+            allShots.forEach(s => {
+                if (s.name === name && s.group === group) {
+                    s.name = newName;
+                    s.group = newGroup;
+                    s.week = week;
+                }
+            });
+
+            // 重新加载到当前编辑模式
+            currentShooter = { name: newName, group: newGroup, week: week };
+            document.getElementById('shooterName').value = newName;
+            document.getElementById('groupSelect').value = newGroup;
+            document.getElementById('weekSelect').value = week;
+            document.getElementById('shooterName').disabled = true;
+            document.getElementById('groupSelect').disabled = true;
+            document.getElementById('weekSelect').disabled = true;
+
+            // 恢复10箭
+            currentShots = allShots.filter(s => s.name === newName && s.group === newGroup && s.week === week).slice(-10);
+
+            // 显示箭数
+            document.getElementById('arrowCount').textContent = `当前第 ${currentShots.length} / 10 箭`;
+
+            drawTarget();
+            updateStats();
+            updateSummary();
+            saveToLocal();
+        }
+
+
 
 </script>
     
