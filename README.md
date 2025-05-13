@@ -277,6 +277,7 @@
             ctx.fill();
             
             updateStats();
+            updateSummary();  // ✅ 立即刷新表格
             saveToLocal();
         });
     
@@ -365,7 +366,6 @@
             updateSummary();
             saveToLocal();
         }
-
 
         function deleteShooter(name, group) {
             if (!confirm(`确认删除 ${name}（${group}）的所有记录？`)) return;
@@ -620,6 +620,7 @@
 
             updateStats();
             drawTarget();
+            updateSummary();  // ✅ 立即刷新表格
             saveToLocal();
         }
 
