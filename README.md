@@ -354,6 +354,9 @@
             nameInput.disabled = false;
             const groupSelect = document.getElementById('groupSelect');
             groupSelect.disabled = false;
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.disabled = false;  // ✅ 解锁周次选择
+
             document.getElementById('stats').innerHTML = '';
             document.getElementById('arrowCount').textContent = '';
 
@@ -361,6 +364,7 @@
             updateSummary();
             saveToLocal();
         }
+
 
         function deleteShooter(name, group) {
             if (!confirm(`确认删除 ${name}（${group}）的所有记录？`)) return;
@@ -370,6 +374,9 @@
             updateSummary();
             drawTarget();
             saveToLocal();
+            document.getElementById('weekSelect').disabled = false;
+            document.getElementById('weekSelect').value = '第1周';
+
         }
 
         function updateSummary() {
@@ -439,6 +446,9 @@
             weekSelect.disabled = false;
             drawTarget();
             saveToLocal();
+            document.getElementById('weekSelect').disabled = false;
+            document.getElementById('weekSelect').value = '第1周';
+
         }
 
     
@@ -545,6 +555,9 @@
                 localStorage.removeItem('archery_allShots');
                 alert('缓存已清除，请刷新页面');
             }
+            document.getElementById('weekSelect').disabled = false;
+            document.getElementById('weekSelect').value = '第1周';
+
         }
 
         function importCSV() {
@@ -563,10 +576,11 @@
                     const parts = lines[i].split(',');
                     if (parts.length < 5) continue;
 
-                    const [name, group, x, y, score, timestamp] = parts;
+                    const [name, group, week, x, y, score, timestamp] = parts;
                     newShots.push({
                         name: name.trim(),
                         group: group.trim(),
+                        week: week.trim(),
                         x: parseFloat(x),
                         y: parseFloat(y),
                         score: parseInt(score),
