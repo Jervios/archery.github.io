@@ -243,6 +243,7 @@
                     }
                 }
                 currentShooter = { name, group, week };
+                
                 nameInput.disabled = true;
                 groupSelect.disabled = true;
                 document.getElementById('weekSelect').disabled = true;
@@ -525,7 +526,6 @@
                     const last = allShots[allShots.length - 1];
                     currentShooter = { name: last.name, group: last.group, week: last.week || '第1周' };
                     document.getElementById('weekSelect').value = last.week || '第1周';
-                    document.getElementById('weekSelect').disabled = true;
                     document.getElementById('shooterName').value = last.name;
                     document.getElementById('groupSelect').value = last.group;
                     document.getElementById('shooterName').disabled = true;
