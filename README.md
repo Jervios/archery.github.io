@@ -579,43 +579,57 @@
             const reader = new FileReader();
             reader.onload = function (e) {
                 const lines = e.target.result.split('\n').filter(line => line.trim() !== '');
-                if (lines.length <= 1) {
-                    alert('导入的CSV没有数据');
+                if (lines.length < 2) {
+                    alert('CSV 文件无有效数据');
                     return;
                 }
 
-                const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-                const hasWeek = headers.includes('week');
+                const headers = lines[0].split(',');
+                const isNewFormat = headers.includes('week');
 
                 const newShots = [];
+                let duplicateCount = 0;
+
                 for (let i = 1; i < lines.length; i++) {
                     const parts = lines[i].split(',');
                     if (parts.length < 5) continue;
 
                     const name = parts[0].trim();
                     const group = parts[1].trim();
-                    const week = hasWeek ? (parts[2]?.trim() || '第0周') : '第0周';
-                    const xIndex = hasWeek ? 3 : 2;
-                    const yIndex = hasWeek ? 4 : 3;
-                    const scoreIndex = hasWeek ? 5 : 4;
-                    const timestampIndex = hasWeek ? 6 : 5;
+                    const week = isNewFormat ? (parts[2]?.trim() || '第0周') : '第0周';
+                    const x = parseFloat(isNewFormat ? parts[3] : parts[2]);
+                    const y = parseFloat(isNewFormat ? parts[4] : parts[3]);
+                    const score = parseInt(isNewFormat ? parts[5] : parts[4]);
+                    const timestamp = parts[isNewFormat ? 6 : 5]?.trim() || new Date().toISOString();
 
-                    const x = parseFloat(parts[xIndex]);
-                    const y = parseFloat(parts[yIndex]);
-                    const score = parseInt(parts[scoreIndex]);
-                    const timestamp = parts[timestampIndex] ? parts[timestampIndex].trim() : new Date().toISOString();
+                    if (isNaN(x) || isNaN(y) || isNaN(score)) continue;
+
+                    // 查找是否已存在相同记录
+                    const exists = allShots.some(s =>
+                        s.name === name &&
+                        s.group === group &&
+                        s.week === week &&
+                        s.x === x &&
+                        s.y === y &&
+                        s.score === score
+                    );
+
+                    if (exists) {
+                        duplicateCount++;
+                        continue; // 跳过已存在
+                    }
 
                     newShots.push({ name, group, week, x, y, score, timestamp });
                 }
 
-                allShots = newShots;
-                currentShots = [];
-                currentShooter = null;
+                if (newShots.length > 0) {
+                    allShots = allShots.concat(newShots);
+                    updateSummary();
+                    drawTarget();
+                    saveToLocal();
+                }
 
-                updateSummary();
-                drawTarget();
-                saveToLocal();
-                alert('CSV 导入成功');
+                alert(`CSV 导入完成，新增 ${newShots.length} 条记录，跳过 ${duplicateCount} 条已存在记录。`);
             };
             reader.readAsText(file);
         }
