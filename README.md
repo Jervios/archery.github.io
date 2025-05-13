@@ -367,9 +367,9 @@
             saveToLocal();
         }
 
-        function deleteShooter(name, group) {
-            if (!confirm(`确认删除 ${name}（${group}）的所有记录？`)) return;
-            allShots = allShots.filter(s => !(s.name === name && s.group === group));
+        function deleteShooter(name, group, week) {
+            if (!confirm(`确认删除 ${name}（${group} - ${week}）的所有记录？`)) return;
+            allShots = allShots.filter(s => !(s.name === name && s.group === group && (s.week || '第0周') === week));
             currentShots = [];
             currentShooter = null;
             updateSummary();
@@ -377,16 +377,17 @@
             saveToLocal();
             document.getElementById('weekSelect').disabled = false;
             document.getElementById('weekSelect').value = '第1周';
-
         }
+
 
         function updateSummary() {
             const summaryDiv = document.getElementById('summary');
 
-            // 按姓名+分组聚合
+            // 按姓名 + 分组 + 周次 完整分组
             const grouped = {};
             allShots.forEach(s => {
-                const key = `${s.name}__${s.group}`;
+                const week = s.week || '第0周';  // 如果没有 week 字段，默认归为第0周
+                const key = `${s.name}__${s.group}__${week}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(s);
             });
@@ -402,6 +403,8 @@
                 const data = grouped[key];
                 const name = data[0].name;
                 const group = data[0].group;
+                const week = data[0].week || '第0周';
+
                 const total = data.reduce((sum, s) => sum + s.score, 0);
                 const avg = total / data.length;
 
@@ -418,14 +421,14 @@
                 }
 
                 html += `<tr>
-                    <td>${name}</td><td>${group}</td><td>${data[0].week || "第0周"}</td>
+                    <td>${name}</td><td>${group}</td><td>${week}</td>
                     <td>${total}</td><td>${avg.toFixed(2)}</td>
                     <td>${meanX.toFixed(2)}</td><td>${meanY.toFixed(2)}</td>
                     <td>${stdX.toFixed(2)}</td><td>${stdY.toFixed(2)}</td>
                     <td>${maxDist.toFixed(2)}</td>
                     <td>
-                        <button onclick="editShooter('${name}', '${group}')">编辑</button>
-                        <button onclick="deleteShooter('${name}', '${group}')">删除</button>
+                        <button onclick="editShooter('${name}', '${group}', '${week}')">编辑</button>
+                        <button onclick="deleteShooter('${name}', '${group}', '${week}')">删除</button>
                     </td>
                 </tr>`;
             }
@@ -433,6 +436,7 @@
             html += '</table>';
             summaryDiv.innerHTML = html;
         }
+
     
         function clearData() {
             if (!confirm('确定要清空所有数据吗？此操作无法撤销。')) return;
@@ -454,34 +458,31 @@
 
     
         function exportCSV() {
-            
             if (allShots.length === 0) {
                 alert('没有数据可导出。');
                 return;
             }
 
-            // 分组按 name+group
             const grouped = {};
             allShots.forEach(s => {
-                const key = `${s.name}__${s.group}`;
+                const weekKey = s.week || '第0周';  // 兼容旧数据没有 week
+                const key = `${s.name}__${s.group}__${weekKey}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(s);
             });
 
             let csv = 'name,group,week,x(cm),y(cm),score,totalScore,averageScore,meanX(cm),meanY(cm),stdX(cm),stdY(cm),maxDistance(cm),timestamp\n';
 
-
             for (const key in grouped) {
                 const groupData = grouped[key];
                 const name = groupData[0].name;
                 const group = groupData[0].group;
+                const week = groupData[0].week || '第0周';
 
-                // 每箭数据
                 groupData.forEach(s => {
-                    csv += `${s.name},${s.group},${s.week},${s.x.toFixed(1)},${s.y.toFixed(1)},${s.score},${s.timestamp},,,,,,,\n`;
+                    csv += `${s.name},${s.group},${s.week || '第0周'},${s.x.toFixed(1)},${s.y.toFixed(1)},${s.score},${s.timestamp},,,,,,,\n`;
                 });
 
-                // 统计信息
                 const totalScore = groupData.reduce((sum, s) => sum + s.score, 0);
                 const averageScore = totalScore / groupData.length;
 
@@ -498,11 +499,10 @@
                     maxDist = Math.max(...validShots.map(s => Math.sqrt(s.x ** 2 + s.y ** 2)));
                 }
 
-                // 输出统计行
-                csv += `${name},${group},,,,,${totalScore},${averageScore.toFixed(2)},${meanX.toFixed(2)},${meanY.toFixed(2)},${stdX.toFixed(2)},${stdY.toFixed(2)},${maxDist.toFixed(2)}\n`;
+                csv += `${name},${group},${week},,,,,${totalScore},${averageScore.toFixed(2)},${meanX.toFixed(2)},${meanY.toFixed(2)},${stdX.toFixed(2)},${stdY.toFixed(2)},${maxDist.toFixed(2)}\n`;
             }
 
-            const BOM = '\uFEFF';  // UTF-8 BOM
+            const BOM = '\uFEFF';
             const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -510,6 +510,7 @@
             a.download = 'archery_detailed_summary.csv';
             a.click();
         }
+
 
         function saveToLocal() {
             localStorage.setItem('archery_allShots', JSON.stringify(allShots));
@@ -574,34 +575,43 @@
             const fileInput = document.getElementById('csvFileInput');
             const file = fileInput.files[0];
             if (!file) return;
-            
 
             const reader = new FileReader();
             reader.onload = function (e) {
                 const lines = e.target.result.split('\n').filter(line => line.trim() !== '');
-                const newShots = [];
-                const headers = lines[0].split(',');
+                if (lines.length <= 1) {
+                    alert('导入的CSV没有数据');
+                    return;
+                }
 
+                const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                const hasWeek = headers.includes('week');
+
+                const newShots = [];
                 for (let i = 1; i < lines.length; i++) {
                     const parts = lines[i].split(',');
                     if (parts.length < 5) continue;
 
-                    const [name, group, week, x, y, score, timestamp] = parts;
-                    newShots.push({
-                        name: name.trim(),
-                        group: group.trim(),
-                        week: week.trim(),
-                        x: parseFloat(x),
-                        y: parseFloat(y),
-                        score: parseInt(score),
-                        timestamp: timestamp ? timestamp.trim() : new Date().toISOString()
-                    });
+                    const name = parts[0].trim();
+                    const group = parts[1].trim();
+                    const week = hasWeek ? (parts[2]?.trim() || '第0周') : '第0周';
+                    const xIndex = hasWeek ? 3 : 2;
+                    const yIndex = hasWeek ? 4 : 3;
+                    const scoreIndex = hasWeek ? 5 : 4;
+                    const timestampIndex = hasWeek ? 6 : 5;
+
+                    const x = parseFloat(parts[xIndex]);
+                    const y = parseFloat(parts[yIndex]);
+                    const score = parseInt(parts[scoreIndex]);
+                    const timestamp = parts[timestampIndex] ? parts[timestampIndex].trim() : new Date().toISOString();
+
+                    newShots.push({ name, group, week, x, y, score, timestamp });
                 }
 
                 allShots = newShots;
-                normalizeWeeks();
                 currentShots = [];
                 currentShooter = null;
+
                 updateSummary();
                 drawTarget();
                 saveToLocal();
@@ -609,6 +619,7 @@
             };
             reader.readAsText(file);
         }
+
 
         function undoLastShot() {
             if (currentShots.length === 0) {
@@ -655,43 +666,46 @@
             ctx.fillText(label, x, y - 20);
         }
 
-        function editShooter(name, group) {
-            const week = prompt("请输入新的周次（例如：第1周、第2周...）", "第1周");
+        function editShooter(name, group, week) {
+            const newWeek = prompt("请输入新的周次（例如：第1周、第2周...）", week);
             const newName = prompt("请输入新的姓名", name);
             const newGroup = prompt("请输入新的分组", group);
 
-            if (!newName || !newGroup || !week) {
+            if (!newName || !newGroup || !newWeek) {
                 alert('编辑取消或无效输入');
                 return;
             }
 
-            // 检查是否已存在相同姓名+分组+周次
-            const conflict = allShots.some(s => s.name === newName && s.group === newGroup && s.week === week && !(s.name === name && s.group === group));
+            // 检查是否已存在相同姓名+分组+周次，但不包括当前自己
+            const conflict = allShots.some(s =>
+                s.name === newName && s.group === newGroup && (s.week || '第0周') === newWeek &&
+                !(s.name === name && s.group === group && (s.week || '第0周') === week)
+            );
             if (conflict) {
-                alert(`已存在 ${newName} 在 ${newGroup} - ${week} 的记录，修改取消`);
+                alert(`已存在 ${newName} 在 ${newGroup} - ${newWeek} 的记录，修改取消`);
                 return;
             }
 
             // 更新 allShots 中所有该选手记录
             allShots.forEach(s => {
-                if (s.name === name && s.group === group) {
+                if (s.name === name && s.group === group && (s.week || '第0周') === week) {
                     s.name = newName;
                     s.group = newGroup;
-                    s.week = week;
+                    s.week = newWeek;
                 }
             });
 
             // 重新加载到当前编辑模式
-            currentShooter = { name: newName, group: newGroup, week: week };
+            currentShooter = { name: newName, group: newGroup, week: newWeek };
             document.getElementById('shooterName').value = newName;
             document.getElementById('groupSelect').value = newGroup;
-            document.getElementById('weekSelect').value = week;
+            document.getElementById('weekSelect').value = newWeek;
             document.getElementById('shooterName').disabled = true;
             document.getElementById('groupSelect').disabled = true;
             document.getElementById('weekSelect').disabled = true;
 
             // 恢复10箭
-            currentShots = allShots.filter(s => s.name === newName && s.group === newGroup && s.week === week).slice(-10);
+            currentShots = allShots.filter(s => s.name === newName && s.group === newGroup && (s.week || '第0周') === newWeek).slice(-10);
 
             // 显示箭数
             document.getElementById('arrowCount').textContent = `当前第 ${currentShots.length} / 10 箭`;
@@ -701,6 +715,7 @@
             updateSummary();
             saveToLocal();
         }
+
 
 
 
