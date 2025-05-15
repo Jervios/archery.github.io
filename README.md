@@ -55,7 +55,9 @@
                     <option value="第12周">第12周</option>
                 </select>
             </label>
-            <span id="arrowCount" style="margin-left:10px;color:#666;"></span>
+            <div style="text-align: center; margin-top: 10px;">
+                <span id="arrowCount" style="color:#666; display: inline-block; min-width: 120px; font-size: 16px;"></span>
+            </div>
         </div>
         <!-- 控制按钮 -->
         <div style="min-width: 150px;">
@@ -360,7 +362,7 @@
             weekSelect.disabled = false;  // ✅ 解锁周次选择
 
             document.getElementById('stats').innerHTML = '';
-            document.getElementById('arrowCount').textContent = '';
+            document.getElementById('arrowCount').textContent = '当前第 0 / 10 箭';
 
             drawTarget();
             updateSummary();
